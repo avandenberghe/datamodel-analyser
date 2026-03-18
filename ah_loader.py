@@ -280,3 +280,31 @@ def get_previous_run(con: duckdb.DuckDBPyConnection) -> dict | None:
         'source_file': prev_file,
         'results': prev_results,
     }
+
+
+def delete_run(con: duckdb.DuckDBPyConnection, run_id: int):
+    """
+    Delete a run and all its data from the database.
+    Refuses to delete the only remaining run.
+    """
+    # Check the run exists
+    exists = con.execute(
+        "SELECT COUNT(*) FROM runs WHERE run_id = ?", [run_id]
+    ).fetchone()[0]
+    if not exists:
+        raise ValueError(f"Run #{run_id} does not exist.")
+
+    # Refuse to delete the last run
+    total = con.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+    if total <= 1:
+        raise ValueError("Cannot delete the only remaining run.")
+
+    # Delete in child-first order (FK dependencies)
+    for table in ('raw_rows', 'relationships', 'concepts', 'runs'):
+        con.execute(f"DELETE FROM {table} WHERE run_id = ?", [run_id])
+
+    # Refresh view to point at the new latest run
+    con.execute(_VIEW_DDL)
+
+    remaining = con.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+    print(f"  Deleted run #{run_id} ({remaining} runs remaining)")
