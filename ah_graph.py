@@ -7,7 +7,7 @@ stored in the DuckDB database for a given run, then renders it as a PNG.
 Node appearance encodes:
   - colour  → source system (InfraRef / Trangis / dual-source)
   - size    → in-degree (how many concepts point to it)
-  - border  → red ring = data quality issue (no GUID or non-unique ID)
+  - border  → yellow ring = data quality issue (no GUID or non-unique ID)
 
 Edge appearance encodes:
   - solid   → "to one" relationship
@@ -27,10 +27,10 @@ from ah_loader import DB_FILE, DPI
 # ── Palette ──────────────────────────────────────────────────────────────────
 C_IR       = '#1A7A5E'   # InfraRef green
 C_IR_EDGE  = '#2EAD82'
-C_TR       = '#1F618D'   # Trangis blue
-C_TR_EDGE  = '#5DADE2'
-C_DUAL     = '#D35400'   # Dual-source amber
-C_WARN     = '#C0392B'   # Red ring for issues
+C_TR       = '#B03A2E'   # Trangis red
+C_TR_EDGE  = '#E74C3C'
+C_DUAL     = '#17A2B8'   # Dual-source turquoise
+C_WARN     = '#F1C40F'   # Yellow ring for issues
 C_BG       = '#FAFAFA'
 C_TITLE    = '#1C2833'
 C_SUBTITLE = '#566573'
