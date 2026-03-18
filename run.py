@@ -13,7 +13,7 @@ Outputs (written to outputs/)
     outputs/graphic1_taxonomy.png    — Five-bucket severity taxonomy     (mail 1)
     outputs/property_graph.md        — Property graph as structured markdown (mail 3)
     outputs/graphic3_resolution.png  — Resolution rate + donut summary    (mail 2)
-    outputs/analysis_summary.txt     — LLM-generated narrative report
+    outputs/analysis_summary.md     — LLM-generated narrative report
 
 Other artefacts
 ---------------
@@ -153,7 +153,7 @@ def main():
     plot_taxonomy(results,           f"{out}/graphic1_taxonomy.png")
     write_property_graph_md(results, f"{out}/property_graph.md")
     plot_resolution(results,         f"{out}/graphic3_resolution.png")
-    write_summary(results,           f"{out}/analysis_summary.txt", previous=previous)
+    write_summary(results,           f"{out}/analysis_summary.md", previous=previous)
 
     print(f"\nDone. All files written to {out}/.")
 

@@ -140,21 +140,9 @@ def generate_narrative(results: dict, source_file: str,
 
 def _fallback_summary(results: dict, source_file: str,
                       previous: dict | None, reason: str = "") -> str:
-    """Structured plain-text fallback when the Claude API is not available."""
+    """Structured markdown fallback when the Claude API is not available."""
     r = results
     ts = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-
-    def heading(title):
-        return f"\n{'=' * 70}\n{title}\n{'=' * 70}\n"
-
-    lines = [
-        heading('Asset Hub — Data Structure Analysis Report'),
-        f"Source file: {source_file}",
-        f"Generated:   {ts}",
-        "",
-    ]
-    if reason:
-        lines += [f"NOTE: {reason}", ""]
 
     ir_total = r['infraref_total']
     ir_yes   = r['infraref_guid_yes']
@@ -165,69 +153,95 @@ def _fallback_summary(results: dict, source_file: str,
     tr_no    = r['trangis_guid_no']
     total    = ir_total + tr_total
 
+    lines = [
+        '# Asset Hub — Data Structure Analysis Report',
+        '',
+        f'**Source file:** {source_file}',
+        f'**Generated:** {ts}',
+        '',
+    ]
+    if reason:
+        lines += [f'> {reason}', '']
+
     lines += [
-        heading('1. GUID Coverage by Source System'),
-        f"  InfraRef:  {ir_yes} of {ir_total} concepts have a GUID ({ir_pct}%)",
-        f"             {ir_no} concept(s) lack a GUID.",
-        "",
-        f"  Trangis:   {tr_yes} of {tr_total} concepts have a GUID (0%)",
-        f"             {tr_no} concept(s) lack a GUID.",
-        "",
+        '## 1. GUID Coverage by Source System',
+        '',
+        '| System | With GUID | Without GUID | Total | Coverage |',
+        '|--------|-----------|-------------|-------|----------|',
+        f'| InfraRef | {ir_yes} | {ir_no} | {ir_total} | {ir_pct}% |',
+        f'| Trangis | {tr_yes} | {tr_no} | {tr_total} | 0% |',
+        '',
     ]
 
     nu = r['non_unique_count']
-    lines.append(heading('2. Non-Unique IDs — Key-Value Invariant Violations'))
+    lines += ['## 2. Non-Unique IDs — Key-Value Invariant Violations', '']
     if nu == 0:
-        lines.append("  No violations found.")
+        lines.append('No violations found.')
     else:
-        lines.append(f"  {nu} of {total} concepts have non-unique IDs:")
-        lines.append("")
+        lines += [
+            f'{nu} of {total} concepts have non-unique IDs:',
+            '',
+            '| Concept | Source | Table |',
+            '|---------|--------|-------|',
+        ]
         for c in r['non_unique_concepts']:
-            lines.append(
-                f"  - {c['concept']:<28} "
-                f"source: {c['sor']}, table: {c['sor_table']}"
-            )
-    lines.append("")
+            lines.append(f"| {c['concept']} | {c['sor']} | {c['sor_table']} |")
+    lines.append('')
 
     dual = r['dual_source_concepts']
-    lines.append(heading('3. Dual-Source Mastery Ambiguity'))
+    lines += ['## 3. Dual-Source Mastery Ambiguity', '']
     if not dual:
-        lines.append("  No ambiguity found.")
+        lines.append('No ambiguity found.')
     else:
         for c in dual:
-            lines.append(f"  - {c}")
-    lines.append("")
+            lines.append(f'- **{c}**')
+    lines.append('')
 
-    lines.append(heading('4. Missing GUIDs — Concepts Without a Key'))
     lines += [
-        f"  Total without GUID : {r['no_guid_total']} of {total}",
-        f"  Trangis            : {r['no_guid_trangis']}",
-        f"  InfraRef           : {r['no_guid_infraref']}  "
-        f"{r['no_guid_infraref_names']}",
-        "",
+        '## 4. Missing GUIDs — Concepts Without a Key',
+        '',
+        f'| Metric | Count |',
+        f'|--------|------:|',
+        f'| Total without GUID | {r["no_guid_total"]} of {total} |',
+        f'| Trangis | {r["no_guid_trangis"]} |',
+        f'| InfraRef | {r["no_guid_infraref"]} |',
+        '',
+    ]
+    if r['no_guid_infraref_names']:
+        lines.append(
+            'InfraRef exceptions: '
+            + ', '.join(r['no_guid_infraref_names'])
+        )
+        lines.append('')
+
+    lines += [
+        '## 5. Relationship-Level GUID Resolution',
+        '',
+        '| Metric | Count | % |',
+        '|--------|------:|--:|',
+        f'| Total relationships | {r["rel_total"]} | |',
+        f'| GUID in source | {r["rel_avail"]} | |',
+        f'| Fetched by Asset Hub | {r["rel_fetched"]} | |',
+        f'| Unresolved | {r["rel_unresolved"]} | {r["rel_unresolved_pct"]}% |',
+        '',
     ]
 
-    lines.append(heading('5. Relationship-Level GUID Resolution'))
-    lines += [
-        f"  Total relationships  : {r['rel_total']}",
-        f"  GUID in source       : {r['rel_avail']}",
-        f"  Fetched by Asset Hub : {r['rel_fetched']}",
-        f"  Unresolved           : {r['rel_unresolved']} ({r['rel_unresolved_pct']}%)",
-        "",
-    ]
-
-    lines.append(heading('6. Comment Keyword Frequencies'))
+    lines += ['## 6. Comment Keyword Frequencies', '',
+              '| Keyword | Mentions |',
+              '|---------|--------:|']
     for kw, count in sorted(r['keyword_counts'].items(), key=lambda x: -x[1]):
-        lines.append(f"  {kw:<20} {count:>4}")
-    lines.append("")
+        lines.append(f'| {kw} | {count} |')
+    lines.append('')
 
     if previous:
         lines += [
-            heading('Previous Run'),
-            f"  Timestamp:   {previous['timestamp']}",
-            f"  Source file:  {previous['source_file']}",
-            "  (Delta comparison requires LLM narrative — add API credits.)",
-            "",
+            '## Previous Run',
+            '',
+            f'- **Timestamp:** {previous["timestamp"]}',
+            f'- **Source file:** {previous["source_file"]}',
+            '',
+            '> Delta comparison requires LLM narrative — add API credits.',
+            '',
         ]
 
     return "\n".join(lines)
