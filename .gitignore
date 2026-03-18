@@ -1,0 +1,14 @@
+.env
+.claude
+.venv
+.jbeval
+.idea/
+__pycache__/
+.DS_Store
+input/
+outputs/
+runs/*.*
+*.duckdb
+*.duckdb.wal
+prompts/
+SPEC.md
