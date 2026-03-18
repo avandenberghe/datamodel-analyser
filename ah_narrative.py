@@ -88,6 +88,14 @@ def _build_user_prompt(results: dict, source_file: str,
 
     parts += [
         "",
+        "The outputs include a data-driven concept relationship graph "
+        "(graph.png) built from the concepts and relationships tables. "
+        "Please include a section interpreting the graph structure: "
+        "what the topology reveals about the data architecture — hub nodes, "
+        "clustering by source system, fan-out patterns, isolated subgraphs, "
+        "and what the red-bordered nodes (data quality issues) mean for the "
+        "overall system's ability to resolve cross-references.",
+        "",
         "Please write the full analysis report now.",
     ]
     return "\n".join(parts)

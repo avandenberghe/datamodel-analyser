@@ -13,6 +13,7 @@ Outputs (written to outputs/)
     outputs/graphic1_taxonomy.png    — Five-bucket severity taxonomy     (mail 1)
     outputs/property_graph.md        — Property graph as structured markdown (mail 3)
     outputs/graphic3_resolution.png  — Resolution rate + donut summary    (mail 2)
+    outputs/graph.png               — Data-driven concept relationship graph
     outputs/analysis_summary.md     — LLM-generated narrative report
 
 Other artefacts
@@ -27,11 +28,12 @@ Module layout
     ah_plot_taxonomy.py     Graphic 1 — five-bucket taxonomy
     ah_graph_md.py          Property graph as markdown
     ah_plot_resolution.py   Graphic 3 — resolution rate bar + donut
+    ah_graph.py             Data-driven concept relationship graph (networkx)
     run.py                  This file — entry point only
 
 Dependencies
 ------------
-    pip install pandas matplotlib openpyxl duckdb anthropic python-dotenv
+    pip install pandas matplotlib openpyxl duckdb anthropic python-dotenv networkx
 
 Environment variables
 ---------------------
@@ -43,6 +45,7 @@ from ah_analysis        import run_analysis, write_summary
 from ah_plot_taxonomy   import plot_taxonomy
 from ah_graph_md        import write_property_graph_md
 from ah_plot_resolution import plot_resolution
+from ah_graph           import plot_graph
 
 
 def write_schema(con, out_path: str):
@@ -149,10 +152,14 @@ def main():
 
     print("Generating outputs …")
     out = "outputs"
+    # Get current run_id for graph
+    run_id = con.execute("SELECT MAX(run_id) FROM runs").fetchone()[0]
+
     write_schema(con,                f"{out}/schema.md")
     plot_taxonomy(results,           f"{out}/graphic1_taxonomy.png")
     write_property_graph_md(results, f"{out}/property_graph.md")
     plot_resolution(results,         f"{out}/graphic3_resolution.png")
+    plot_graph(                      f"{out}/graph.png", run_id=run_id)
     write_summary(results,           f"{out}/analysis_summary.md", previous=previous)
 
     print(f"\nDone. All files written to {out}/.")
