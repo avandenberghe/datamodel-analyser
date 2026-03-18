@@ -113,10 +113,22 @@ def plot_graph(out_path: str, run_id: int | None = None,
             edge_styles[key] = 'to many' if 'many' in rel else 'to one'
 
     # Some relationship targets may not be in the concepts table
-    # (typos or cross-system references) — add them as unknowns
+    # (e.g. WorkCenter, typos) — infer SoR from referencing relationships
+    edge_sor = {}
+    for _, row in rels.iterrows():
+        tgt = row['related']
+        if tgt not in sor_map:
+            edge_sor.setdefault(tgt, set()).add(row['sor'])
+
     for n in G.nodes():
         if n not in sor_map:
-            sor_map[n] = 'unknown'
+            sources = edge_sor.get(n, set())
+            if len(sources) == 1:
+                sor_map[n] = next(iter(sources))
+            elif len(sources) > 1:
+                sor_map[n] = 'dual'
+            else:
+                sor_map[n] = 'unknown'
             guid_map[n] = False
             unique_map[n] = True
 

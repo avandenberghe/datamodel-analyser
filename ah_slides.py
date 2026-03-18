@@ -234,46 +234,44 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
               f'{n_concepts} concepts  \u00b7  {n_rels} relationships  \u00b7  '
               f'Run #{run_id}  \u00b7  {run_ts}',
               font_size=14, color=GRAY)
-    _add_text(slide, Inches(1), Inches(5.2), Inches(11), Inches(0.5),
-              'Can every concept be uniquely addressed, and can every '
-              'relationship be resolved?',
-              font_size=16, color=AMBER)
+    _add_text(slide, Inches(1), Inches(5.0), Inches(11), Inches(0.8),
+              '294 of 350 relationships (84%) cannot be resolved today.\n'
+              'Trangis provides 0 GUIDs out of 29 concepts.',
+              font_size=18, bold=True, color=AMBER)
 
     slide.notes_slide.notes_text_frame.text = (
-        "This analysis answers a fundamental architectural question about Asset Hub. "
-        "We looked at the complete data model, every concept and every relationship,"
-        "to determine whether the key-value store can actually function as designed. "
-        "The short answer: it cannot, and the reasons are structural, not transient."
+        "We analysed all 76 concepts and 350 relationships in Asset Hub. "
+        "The numbers on this slide are the headline: 84% of relationships are unresolved, "
+        "and the root cause traces back to one source system providing zero GUIDs. "
+        "The rest of this deck shows exactly where those failures are, why they exist, "
+        "and what it would take to fix them."
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
     # SLIDE 2,Context
     # ═══════════════════════════════════════════════════════════════════════════
     slide = prs.slides.add_slide(blank)
-    _slide_title(slide, 'What is Asset Hub?')
+    _slide_title(slide, 'Asset Hub: Two Source Systems, Two Realities')
 
     items = [
-        'A key-value store aggregating data from two upstream systems',
-        'InfraRef (MSSQL), 47 concepts, asset master data, strong GUID discipline',
-        'Trangis (Oracle views), 29 concepts, network topology, read-only, '
-        'scheduled for decommissioning, zero GUIDs',
-        'Architectural invariant: every concept MUST be addressable by a unique ID (GUID)',
-        'Non-unique IDs cause silent data loss (one value overwrites another)',
-        'Missing GUIDs mean a concept is un-addressable in the store',
-        'Unresolved relationship GUIDs mean links between concepts cannot be followed',
+        'Asset Hub is a key-value store: every concept must have a unique, stable identifier (GUID)',
+        'InfraRef (MSSQL): 47 concepts, 44 with GUID (93.6%)',
+        'Trangis (Oracle views): 29 concepts, 0 with GUID (0.0%)',
+        'Trangis views are read-only, the schema cannot be altered, '
+        'the system is scheduled for decommissioning',
+        'Missing GUIDs: 32 concepts that cannot be addressed in the store',
+        '294 relationships that cannot be traversed because the target has no GUID',
     ]
     _add_bullet_list(slide, Inches(0.6), Inches(1.2), Inches(12), Inches(5.5),
                      items, font_size=16)
 
     slide.notes_slide.notes_text_frame.text = (
-        "Asset Hub is a key-value store, think of it as a giant dictionary where "
-        "every piece of data must have a unique key to be stored and retrieved. "
-        "It pulls from two very different upstream systems. InfraRef is well-structured "
-        "MSSQL with strong GUID discipline, 94% coverage. Trangis is the opposite: "
-        "read-only Oracle views that we cannot modify, scheduled for decommissioning, "
-        "and zero GUID coverage. The three invariants on this slide are non-negotiable "
-        "for a key-value store to function correctly. Violating any of them means "
-        "data loss, orphaned records, or broken references."
+        "These are the raw numbers. InfraRef provides GUIDs for 44 of 47 concepts, "
+        "Trangis provides GUIDs for 0 of 29. The 3 InfraRef exceptions are legacy tables "
+        "that can be remediated. The 29 Trangis gaps cannot, because the Oracle views are "
+        "read-only and the system is in decommissioning. This distinction matters: "
+        "one side is a data quality issue with a fix path, the other is an architectural "
+        "constraint with no fix path within the current system."
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -281,8 +279,8 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
     # ═══════════════════════════════════════════════════════════════════════════
     slide = prs.slides.add_slide(blank)
     _slide_title(slide, 'Concept Relationship Graph',
-                 'Node size = in-degree  \u00b7  Colour = source system  '
-                 '\u00b7  Yellow border = data quality issue')
+                 'Node size = in-degree  \u00b7  Green = InfraRef  \u00b7  '
+                 'Red = Trangis  \u00b7  Yellow border = no GUID or non-unique ID')
 
     graph_path = str(OUT_DIR / 'graph.png')
     slide.shapes.add_picture(
@@ -293,54 +291,55 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
                      'Open interactive graph', 'graph.html')
 
     slide.notes_slide.notes_text_frame.text = (
-        "This is a direct rendering of the data, every dot is a concept, every line "
-        "is a relationship. Green nodes are InfraRef, red nodes are Trangis, the "
-        "turquoise node is GeographicalSite which exists in both systems. "
-        "Node size tells you how many other concepts point to it, the bigger the dot, "
-        "the more critical it is as a reference target. Yellow borders flag data quality "
-        "issues: either no GUID or a non-unique ID. Notice how almost all Trangis nodes "
-        "have yellow borders, that's the zero-GUID problem made visible. "
-        "The next slide breaks down what this structure means."
+        "This is a direct rendering of the data, not a model. Every dot is a concept, "
+        "every line is a relationship stored in the database. Green nodes are InfraRef, "
+        "red nodes are Trangis, turquoise is GeographicalSite which exists in both. "
+        "Yellow borders indicate a data quality issue: no GUID or non-unique ID. "
+        "Note that the entire Trangis cluster is yellow-bordered. "
+        "The InfraRef side has only a few yellow nodes (3 legacy exceptions)."
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
     # SLIDE 4,Graph Interpretation
     # ═══════════════════════════════════════════════════════════════════════════
     slide = prs.slides.add_slide(blank)
-    _slide_title(slide, 'Reading the Graph')
+    _slide_title(slide, 'Graph Topology: Hub Nodes and Resolution Rates')
 
     left_items = [
-        'Star topology: 6 hub nodes absorb nearly all incoming edges',
-        'ServiceCenter (53 in), most connected node, referenced by both systems',
-        'WorkCenter (44 in), only hub with 100% GUID resolution',
-        'GeographicalBay, PowerTransformerPlace, GeographicalSubstation, '
-        'GeographicalContainer, location hierarchy',
+        '6 hub nodes receive the majority of all incoming edges',
+        'ServiceCenter: 53 incoming references, 1.9% GUID resolution',
+        'WorkCenter: 44 incoming references, 100% GUID resolution',
+        'GeographicalBay (40), PowerTransformerPlace (40), '
+        'GeographicalSubstation (42), GeographicalContainer (30)',
+        'WorkCenter demonstrates the architecture works when GUIDs are present',
     ]
     _add_text(slide, Inches(0.6), Inches(1.2), Inches(5.5), Inches(0.4),
-              'Hub Nodes (right side, large dots)', font_size=16, bold=True, color=GREEN)
-    _add_bullet_list(slide, Inches(0.6), Inches(1.7), Inches(5.8), Inches(2.5),
+              'Hub nodes (largest dots)', font_size=16, bold=True, color=GREEN)
+    _add_bullet_list(slide, Inches(0.6), Inches(1.7), Inches(5.8), Inches(2.8),
                      left_items, font_size=13)
 
     right_items = [
-        '~40 InfraRef equipment assets form a dense cluster of small green nodes',
-        'Each has 5\u20137 outgoing edges to the same hub set, the fan pattern',
-        'Trangis nodes (red, upper-left) ALL have yellow borders = no GUIDs',
-        'GeographicalSite (turquoise) sits between clusters = dual-source join point',
-        'Cross-boundary edges (InfraRef \u2194 Trangis) cannot carry GUIDs',
+        '29 of 29 Trangis nodes have yellow borders (0% GUID coverage)',
+        'GeographicalSite (turquoise): only concept in both systems, '
+        'no designated master, join on GeographicalSiteID = P5COD',
+        'Cross-boundary edges (InfraRef to Trangis targets) cannot resolve '
+        'because the target system provides no GUIDs',
+        'Trangis has its own internal topology (Tower, Junction, Line, '
+        'GeographicalSpan) but it is entirely disconnected from the GUID graph',
     ]
     _add_text(slide, Inches(6.8), Inches(1.2), Inches(5.5), Inches(0.4),
-              'Clusters & Cross-Boundary', font_size=16, bold=True, color=RED)
-    _add_bullet_list(slide, Inches(6.8), Inches(1.7), Inches(5.8), Inches(2.5),
+              'Trangis boundary', font_size=16, bold=True, color=RED)
+    _add_bullet_list(slide, Inches(6.8), Inches(1.7), Inches(5.8), Inches(2.8),
                      right_items, font_size=13)
 
-    _add_text(slide, Inches(0.6), Inches(4.8), Inches(12), Inches(0.4),
-              'What the topology reveals', font_size=16, bold=True, color=RED)
-    _add_bullet_list(slide, Inches(0.6), Inches(5.3), Inches(12), Inches(1.8),
+    _add_text(slide, Inches(0.6), Inches(5.0), Inches(12), Inches(0.4),
+              'Implication', font_size=16, bold=True, color=AMBER)
+    _add_bullet_list(slide, Inches(0.6), Inches(5.5), Inches(12), Inches(1.5),
                      [
-                         'Everything depends on 5\u20136 hub nodes for location resolution, '
-                         'but 84% of edges cannot resolve their target\u2019s GUID',
-                         'The wiring is structurally broken across the Trangis boundary,'
-                         'not a data quality issue, but an architectural one',
+                         'The 84% unresolved rate is not distributed evenly: InfraRef-to-InfraRef '
+                         'relationships resolve well, Trangis relationships resolve at 0%',
+                         'Improving the overall rate requires addressing Trangis at source, '
+                         'not patching Asset Hub',
                      ], font_size=14, color=BG_DARK)
 
     slide.notes_slide.notes_text_frame.text = (
@@ -416,7 +415,7 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
     # SLIDE 7,GUID Coverage
     # ═══════════════════════════════════════════════════════════════════════════
     slide = prs.slides.add_slide(blank)
-    _slide_title(slide, 'GUID Coverage by Source System')
+    _slide_title(slide, 'GUID Coverage: 93.6% vs 0.0%')
 
     _add_table(slide, Inches(0.6), Inches(1.3), Inches(7), Inches(0.45),
                ['System', 'Total', 'With GUID', 'Without GUID', 'Coverage'],
@@ -462,7 +461,7 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
     # SLIDE 6,Key Violations
     # ═══════════════════════════════════════════════════════════════════════════
     slide = prs.slides.add_slide(blank)
-    _slide_title(slide, 'Key Violations: Non-Unique IDs & Dual-Source')
+    _slide_title(slide, 'Non-Unique IDs and Dual-Source Mastery: 4 + 1 Violations')
 
     _add_text(slide, Inches(0.6), Inches(1.2), Inches(5.5), Inches(0.4),
               'Non-Unique IDs (4 concepts)', font_size=18, bold=True, color=RED)
@@ -516,7 +515,7 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
     # SLIDE 7,Relationship Resolution
     # ═══════════════════════════════════════════════════════════════════════════
     slide = prs.slides.add_slide(blank)
-    _slide_title(slide, 'Relationship Resolution: 84% Unresolved')
+    _slide_title(slide, '294 of 350 Relationships Unresolved (84%)')
 
     res_path = str(OUT_DIR / 'graphic3_resolution.png')
     slide.shapes.add_picture(
@@ -549,61 +548,59 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
     _slide_title(slide, 'Recommendations')
 
     _add_text(slide, Inches(0.6), Inches(1.2), Inches(3.5), Inches(0.4),
-              'Immediate', font_size=18, bold=True, color=RED)
+              'Immediate (InfraRef fixes)', font_size=18, bold=True, color=RED)
     _add_bullet_list(slide, Inches(0.6), Inches(1.7), Inches(3.5), Inches(2.5),
                      [
-                         'Fix non-unique IDs for GeographicalBay and '
-                         'PowerTransformerPlace (InfraRef data quality)',
-                         'Document Trangis line sign-flipping cascade '
-                         'impact with source analysts',
-                         'Add GUIDs to 3 InfraRef exceptions',
+                         'Resolve non-unique IDs for GeographicalBay '
+                         'and PowerTransformerPlace',
+                         'Add GUIDs to FaultRecorderAsset, SubStation, '
+                         'VoltageLevel (3 legacy gaps)',
+                         'Confirm cascade behaviour of Trangis line '
+                         'sign-flipping with source analysts',
                      ], font_size=13)
 
     _add_text(slide, Inches(4.6), Inches(1.2), Inches(3.8), Inches(0.4),
-              'Medium-term', font_size=18, bold=True, color=AMBER)
+              'Medium-term (containment)', font_size=18, bold=True, color=AMBER)
     _add_bullet_list(slide, Inches(4.6), Inches(1.7), Inches(3.8), Inches(2.5),
                      [
-                         'Develop GUID mapping for Trangis using '
-                         'business keys as interim identifiers',
-                         'Establish merge logic for GeographicalSite '
-                         'dual-source resolution',
-                         'Create monitoring dashboard for relationship '
-                         'resolution rate (track the 84%)',
+                         'Define interim GUID mapping for Trangis '
+                         'concepts using business keys',
+                         'Establish conflict resolution rule for '
+                         'GeographicalSite dual-source merge',
+                         'Implement resolution rate monitoring '
+                         'to track progress against the 84% baseline',
                      ], font_size=13)
 
     _add_text(slide, Inches(9), Inches(1.2), Inches(3.8), Inches(0.4),
-              'Strategic', font_size=18, bold=True, color=GREEN)
+              'Strategic (Trangis exit)', font_size=18, bold=True, color=GREEN)
     _add_bullet_list(slide, Inches(9), Inches(1.7), Inches(3.8), Inches(2.5),
                      [
-                         'Accelerate Trangis decommissioning to '
-                         'eliminate the zero-GUID source',
-                         'Migrate critical Trangis concepts to '
-                         'InfraRef with proper GUID implementation',
-                         'Implement referential integrity checks at '
-                         'ingestion time',
+                         'Prioritise Trangis successor with GUID '
+                         'discipline matching InfraRef',
+                         'Migrate critical Trangis concepts (Line, '
+                         'Junction, Tower, GeographicalSpan) first',
+                         'Design Asset Hub v2 ingestion with '
+                         'referential integrity checks at source',
                      ], font_size=13)
 
     _add_text(slide, Inches(0.6), Inches(4.8), Inches(12), Inches(2),
-              'The combination of missing GUIDs, non-unique IDs, and 84% unresolved '
-              'relationships means Asset Hub cannot reliably link data together,'
-              'the opposite of what a unified data hub should achieve. '
-              'The issues are structural (Trangis architecture), not transient.',
+              'The InfraRef side can reach near-100% resolution with targeted fixes. '
+              'The Trangis side cannot improve without a successor system. '
+              'WorkCenter (100% resolution, 44 references) demonstrates that the Asset Hub '
+              'architecture works when the source system provides GUIDs.',
               font_size=16, bold=True, color=BG_DARK)
 
     slide.notes_slide.notes_text_frame.text = (
-        "The recommendations fall into three time horizons. "
-        "Immediate: fix the two InfraRef data quality issues,GeographicalBay and "
-        "PowerTransformerPlace should not have non-unique IDs, and the 3 InfraRef concepts "
-        "missing GUIDs can be remediated. Also critical: get clarity from the Trangis source "
-        "team on the line sign-flipping cascade, we need to know if dependent concepts like "
-        "GuardCircuit update when a line flips state. "
-        "Medium-term: we need interim GUID mappings for Trangis using business keys, "
-        "a merge strategy for the GeographicalSite dual-source problem, and a monitoring "
-        "dashboard to track improvement in that 84% unresolved rate. "
-        "Strategic: the long-term answer is accelerating Trangis decommissioning and "
-        "migrating critical concepts to InfraRef with proper GUID implementation. "
-        "The bottom line: these issues are architectural, not transient. The data will not "
-        "fix itself. Without intervention, Asset Hub cannot function as a unified data hub."
+        "Three columns, three time horizons. The immediate fixes are all on the InfraRef side "
+        "and are achievable: 2 non-unique ID issues, 3 missing GUIDs, and one open question "
+        "about line sign-flipping that needs an answer from the Trangis source analysts. "
+        "Medium-term is about containing the Trangis problem: interim GUID mappings using "
+        "business keys, a merge rule for GeographicalSite, and monitoring so we can track "
+        "whether the 84% baseline improves. "
+        "Strategic is the real conversation: Trangis needs a successor, and that successor "
+        "needs to provide GUIDs. WorkCenter proves the architecture works at 100% when the "
+        "source cooperates. The question for stakeholders is not whether to replace Trangis, "
+        "but how quickly, and whether Asset Hub v2 should enforce GUID availability at ingestion."
     )
 
     # ── Save ─────────────────────────────────────────────────────────────────

@@ -84,12 +84,21 @@ def build_interactive_graph(out_path: str = 'outputs/graph.html',
             seen.add(key)
             edges.append((src, tgt, rel, row['sor']))
 
-    # Fill in unknowns for relationship targets not in concepts table
-    for _, tgt, _, _ in edges:
+    # Infer SoR for relationship targets not in concepts table
+    edge_sor = {}
+    for _, tgt, _, sor in edges:
         if tgt not in sor_map:
+            edge_sor.setdefault(tgt, set()).add(sor)
+
+    for tgt, sources in edge_sor.items():
+        if len(sources) == 1:
+            sor_map[tgt] = next(iter(sources))
+        elif len(sources) > 1:
+            sor_map[tgt] = 'dual'
+        else:
             sor_map[tgt] = 'unknown'
-            guid_map[tgt] = False
-            unique_map[tgt] = True
+        guid_map[tgt] = False
+        unique_map[tgt] = True
 
     # ── SoR filter ───────────────────────────────────────────────────────────
     if sor_filter:
