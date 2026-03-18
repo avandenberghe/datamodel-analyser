@@ -1,5 +1,5 @@
 """
-ah_slides.py — Asset Hub Analysis Slide Deck
+ah_slides.py,Asset Hub Analysis Slide Deck
 =============================================
 Generates a PowerPoint presentation from the analysis outputs.
 Uses the pre-rendered PNGs and analysis results from the DuckDB database.
@@ -21,16 +21,17 @@ from ah_loader import DB_FILE
 
 OUT_DIR = Path("outputs")
 
-# ── Palette ──────────────────────────────────────────────────────────────────
-BG_DARK    = RGBColor(0x1C, 0x28, 0x33)
+# ── AWS Palette ───────────────────────────────────────────────────────────────
+BG_DARK    = RGBColor(0x23, 0x2F, 0x3E)   # Squid Ink
 BG_SLIDE   = RGBColor(0xFA, 0xFA, 0xFA)
 WHITE      = RGBColor(0xFF, 0xFF, 0xFF)
-GRAY       = RGBColor(0x56, 0x65, 0x73)
-GREEN      = RGBColor(0x1A, 0x7A, 0x5E)
-BLUE       = RGBColor(0x1F, 0x61, 0x8D)
-RED        = RGBColor(0xC0, 0x39, 0x2B)
-AMBER      = RGBColor(0xD3, 0x54, 0x00)
-LIGHT_GRAY = RGBColor(0xEC, 0xF0, 0xF1)
+GRAY       = RGBColor(0x54, 0x60, 0x6E)   # AWS Slate
+GREEN      = RGBColor(0x1B, 0x66, 0x0F)   # AWS Green (success)
+BLUE       = RGBColor(0x00, 0x73, 0xBB)   # AWS Anchor Blue
+RED        = RGBColor(0xD1, 0x34, 0x12)   # AWS Red (error/critical)
+AMBER      = RGBColor(0xFF, 0x99, 0x00)   # AWS Orange (primary brand)
+LIGHT_GRAY = RGBColor(0xEB, 0xED, 0xF0)   # AWS Cloud Gray
+FONT       = 'Amazon Ember'
 
 
 def _set_slide_bg(slide, color):
@@ -43,7 +44,7 @@ def _set_slide_bg(slide, color):
 
 def _add_text(slide, left, top, width, height, text, *,
               font_size=18, bold=False, color=BG_DARK, alignment=PP_ALIGN.LEFT,
-              font_name='Calibri'):
+              font_name=None):
     """Add a text box with a single run."""
     txBox = slide.shapes.add_textbox(left, top, width, height)
     tf = txBox.text_frame
@@ -55,7 +56,7 @@ def _add_text(slide, left, top, width, height, text, *,
     run.font.size = Pt(font_size)
     run.font.bold = bold
     run.font.color.rgb = color
-    run.font.name = font_name
+    run.font.name = font_name or FONT
     return tf
 
 
@@ -76,7 +77,7 @@ def _add_bullet_list(slide, left, top, width, height, items, *,
         run.text = item
         run.font.size = Pt(font_size)
         run.font.color.rgb = color
-        run.font.name = 'Calibri'
+        run.font.name = FONT
     return tf
 
 
@@ -104,7 +105,7 @@ def _add_table(slide, left, top, width, row_height, headers, rows, *,
                 run.font.size = Pt(11)
                 run.font.bold = True
                 run.font.color.rgb = WHITE
-                run.font.name = 'Calibri'
+                run.font.name = FONT
 
     # Data rows
     for i, row in enumerate(rows):
@@ -118,9 +119,41 @@ def _add_table(slide, left, top, width, row_height, headers, rows, *,
                 for run in p.runs:
                     run.font.size = Pt(10)
                     run.font.color.rgb = BG_DARK
-                    run.font.name = 'Calibri'
+                    run.font.name = FONT
 
     return table_shape
+
+
+def _add_link_button(slide, left, top, width, height, text, url, *,
+                     fill_color=AMBER):
+    """Add a clickable button shape that opens a URL."""
+    from pptx.oxml.ns import qn
+    shape = slide.shapes.add_shape(
+        1, left, top, width, height  # MSO_SHAPE.RECTANGLE
+    )
+    shape.fill.solid()
+    shape.fill.fore_color.rgb = fill_color
+    shape.line.fill.background()
+
+    tf = shape.text_frame
+    tf.word_wrap = True
+    p = tf.paragraphs[0]
+    p.alignment = PP_ALIGN.CENTER
+    run = p.add_run()
+    run.text = text
+    run.font.size = Pt(10)
+    run.font.bold = True
+    run.font.color.rgb = WHITE
+    run.font.name = FONT
+
+    # Add hyperlink via oxml
+    rPr = run._r.get_or_add_rPr()
+    hlinkClick = rPr.makeelement(qn('a:hlinkClick'), {})
+    hlinkClick.set(qn('r:id'), '')
+    rPr.append(hlinkClick)
+    # Set the hyperlink relationship
+    rel = slide.part.relate_to(url, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink', is_external=True)
+    hlinkClick.set(qn('r:id'), rel)
 
 
 def _slide_title(slide, title, subtitle=None):
@@ -134,6 +167,14 @@ def _slide_title(slide, title, subtitle=None):
     shape.fill.solid()
     shape.fill.fore_color.rgb = BG_DARK
     shape.line.fill.background()
+
+    # AWS orange accent line
+    accent = slide.shapes.add_shape(
+        1, Inches(0.6), Inches(0.88), Inches(12.1), Inches(0.03)
+    )
+    accent.fill.solid()
+    accent.fill.fore_color.rgb = AMBER
+    accent.line.fill.background()
 
     _add_text(slide, Inches(0.6), Inches(0.15), Inches(12), Inches(0.5),
               title, font_size=24, bold=True, color=WHITE)
@@ -172,10 +213,18 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
     blank = prs.slide_layouts[6]  # blank layout
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # SLIDE 1 — Title
+    # SLIDE 1,Title
     # ═══════════════════════════════════════════════════════════════════════════
     slide = prs.slides.add_slide(blank)
     _set_slide_bg(slide, BG_DARK)
+
+    # AWS orange accent bar
+    bar = slide.shapes.add_shape(
+        1, Inches(1), Inches(1.5), Inches(1.5), Inches(0.06)
+    )
+    bar.fill.solid()
+    bar.fill.fore_color.rgb = AMBER
+    bar.line.fill.background()
 
     _add_text(slide, Inches(1), Inches(1.8), Inches(11), Inches(1),
               'Asset Hub', font_size=44, bold=True, color=WHITE)
@@ -192,21 +241,21 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
 
     slide.notes_slide.notes_text_frame.text = (
         "This analysis answers a fundamental architectural question about Asset Hub. "
-        "We looked at the complete data model — every concept and every relationship — "
+        "We looked at the complete data model, every concept and every relationship,"
         "to determine whether the key-value store can actually function as designed. "
         "The short answer: it cannot, and the reasons are structural, not transient."
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # SLIDE 2 — Context
+    # SLIDE 2,Context
     # ═══════════════════════════════════════════════════════════════════════════
     slide = prs.slides.add_slide(blank)
     _slide_title(slide, 'What is Asset Hub?')
 
     items = [
         'A key-value store aggregating data from two upstream systems',
-        'InfraRef (MSSQL) \u2014 47 concepts, asset master data, strong GUID discipline',
-        'Trangis (Oracle views) \u2014 29 concepts, network topology, read-only, '
+        'InfraRef (MSSQL), 47 concepts, asset master data, strong GUID discipline',
+        'Trangis (Oracle views), 29 concepts, network topology, read-only, '
         'scheduled for decommissioning, zero GUIDs',
         'Architectural invariant: every concept MUST be addressable by a unique ID (GUID)',
         'Non-unique IDs cause silent data loss (one value overwrites another)',
@@ -217,10 +266,10 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
                      items, font_size=16)
 
     slide.notes_slide.notes_text_frame.text = (
-        "Asset Hub is a key-value store — think of it as a giant dictionary where "
+        "Asset Hub is a key-value store, think of it as a giant dictionary where "
         "every piece of data must have a unique key to be stored and retrieved. "
         "It pulls from two very different upstream systems. InfraRef is well-structured "
-        "MSSQL with strong GUID discipline — 94% coverage. Trangis is the opposite: "
+        "MSSQL with strong GUID discipline, 94% coverage. Trangis is the opposite: "
         "read-only Oracle views that we cannot modify, scheduled for decommissioning, "
         "and zero GUID coverage. The three invariants on this slide are non-negotiable "
         "for a key-value store to function correctly. Violating any of them means "
@@ -228,7 +277,7 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # SLIDE 3 — Concept Relationship Graph
+    # SLIDE 3,Concept Relationship Graph
     # ═══════════════════════════════════════════════════════════════════════════
     slide = prs.slides.add_slide(blank)
     _slide_title(slide, 'Concept Relationship Graph',
@@ -240,29 +289,32 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
         graph_path, Inches(0.4), Inches(1.0), Inches(12.5), Inches(6.3)
     )
 
+    _add_link_button(slide, Inches(10.8), Inches(7.0), Inches(2.2), Inches(0.35),
+                     'Open interactive graph', 'graph.html')
+
     slide.notes_slide.notes_text_frame.text = (
-        "This is a direct rendering of the data — every dot is a concept, every line "
+        "This is a direct rendering of the data, every dot is a concept, every line "
         "is a relationship. Green nodes are InfraRef, red nodes are Trangis, the "
         "turquoise node is GeographicalSite which exists in both systems. "
-        "Node size tells you how many other concepts point to it — the bigger the dot, "
+        "Node size tells you how many other concepts point to it, the bigger the dot, "
         "the more critical it is as a reference target. Yellow borders flag data quality "
         "issues: either no GUID or a non-unique ID. Notice how almost all Trangis nodes "
-        "have yellow borders — that's the zero-GUID problem made visible. "
+        "have yellow borders, that's the zero-GUID problem made visible. "
         "The next slide breaks down what this structure means."
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # SLIDE 4 — Graph Interpretation
+    # SLIDE 4,Graph Interpretation
     # ═══════════════════════════════════════════════════════════════════════════
     slide = prs.slides.add_slide(blank)
     _slide_title(slide, 'Reading the Graph')
 
     left_items = [
         'Star topology: 6 hub nodes absorb nearly all incoming edges',
-        'ServiceCenter (53 in) \u2014 most connected node, referenced by both systems',
-        'WorkCenter (44 in) \u2014 only hub with 100% GUID resolution',
+        'ServiceCenter (53 in), most connected node, referenced by both systems',
+        'WorkCenter (44 in), only hub with 100% GUID resolution',
         'GeographicalBay, PowerTransformerPlace, GeographicalSubstation, '
-        'GeographicalContainer \u2014 location hierarchy',
+        'GeographicalContainer, location hierarchy',
     ]
     _add_text(slide, Inches(0.6), Inches(1.2), Inches(5.5), Inches(0.4),
               'Hub Nodes (right side, large dots)', font_size=16, bold=True, color=GREEN)
@@ -271,7 +323,7 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
 
     right_items = [
         '~40 InfraRef equipment assets form a dense cluster of small green nodes',
-        'Each has 5\u20137 outgoing edges to the same hub set \u2014 the fan pattern',
+        'Each has 5\u20137 outgoing edges to the same hub set, the fan pattern',
         'Trangis nodes (red, upper-left) ALL have yellow borders = no GUIDs',
         'GeographicalSite (turquoise) sits between clusters = dual-source join point',
         'Cross-boundary edges (InfraRef \u2194 Trangis) cannot carry GUIDs',
@@ -287,26 +339,81 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
                      [
                          'Everything depends on 5\u20136 hub nodes for location resolution, '
                          'but 84% of edges cannot resolve their target\u2019s GUID',
-                         'The wiring is structurally broken across the Trangis boundary \u2014 '
+                         'The wiring is structurally broken across the Trangis boundary,'
                          'not a data quality issue, but an architectural one',
                      ], font_size=14, color=BG_DARK)
 
     slide.notes_slide.notes_text_frame.text = (
-        "The graph reveals a star topology — almost everything converges on 5-6 hub nodes. "
+        "The graph reveals a star topology, almost everything converges on 5-6 hub nodes. "
         "ServiceCenter is the single most connected node at 53 incoming references, used by "
-        "both InfraRef and Trangis. WorkCenter is the success story — 44 incoming references "
+        "both InfraRef and Trangis. WorkCenter is the success story, 44 incoming references "
         "and 100% GUID resolution, proving the pattern works when the source system cooperates. "
-        "The ~40 small green dots in the center are InfraRef equipment assets — each one has "
+        "The ~40 small green dots in the center are InfraRef equipment assets, each one has "
         "5-7 outgoing edges to the same hubs, creating the visible fan pattern. "
-        "On the Trangis side, the red cluster has its own internal topology — Tower, Junction, "
-        "GeographicalSpan, Line — but every cross-boundary edge to InfraRef is broken because "
+        "On the Trangis side, the red cluster has its own internal topology,Tower, Junction, "
+        "GeographicalSpan, Line, but every cross-boundary edge to InfraRef is broken because "
         "GUIDs cannot travel across the Trangis boundary. "
         "The key takeaway: the architecture depends on hub nodes for resolution, but 84% of "
         "the wiring to reach them is broken. This is structural, not a data quality issue."
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # SLIDE 5 — GUID Coverage
+    # SLIDE 5,InfraRef Graph
+    # ═══════════════════════════════════════════════════════════════════════════
+    slide = prs.slides.add_slide(blank)
+    _slide_title(slide, 'InfraRef, Concept Graph',
+                 '47 concepts  \u00b7  Green = InfraRef  \u00b7  '
+                 'Red nodes = Trangis targets referenced across the boundary')
+
+    ir_path = str(OUT_DIR / 'graph_infraref.png')
+    slide.shapes.add_picture(
+        ir_path, Inches(0.4), Inches(1.0), Inches(12.5), Inches(6.3)
+    )
+
+    _add_link_button(slide, Inches(10.8), Inches(7.0), Inches(2.2), Inches(0.35),
+                     'Open interactive graph', 'graph_infraref.html')
+
+    slide.notes_slide.notes_text_frame.text = (
+        "This is the InfraRef subgraph in isolation. The fan pattern is very clear here,"
+        "~40 equipment assets all pointing to the same 5-6 location hubs. Every equipment "
+        "concept follows the same template: references to WorkCenter, ServiceCenter, "
+        "GeographicalSubstation, GeographicalBay, PowerTransformerPlace, and often "
+        "GeographicalContainer. WorkCenter achieves 100% GUID resolution. The red nodes "
+        "you see are Trangis concepts that InfraRef references across the system boundary,"
+        "these are the edges where GUIDs get lost. The three InfraRef exceptions without "
+        "GUIDs,FaultRecorderAsset, SubStation, VoltageLevel, are visible with yellow borders."
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SLIDE 6,Trangis Graph
+    # ═══════════════════════════════════════════════════════════════════════════
+    slide = prs.slides.add_slide(blank)
+    _slide_title(slide, 'Trangis, Concept Graph',
+                 '29 concepts  \u00b7  Red = Trangis  \u00b7  '
+                 'Turquoise = dual-source (GeographicalSite)')
+
+    tr_path = str(OUT_DIR / 'graph_trangis.png')
+    slide.shapes.add_picture(
+        tr_path, Inches(0.4), Inches(1.0), Inches(12.5), Inches(6.3)
+    )
+
+    _add_link_button(slide, Inches(10.8), Inches(7.0), Inches(2.2), Inches(0.35),
+                     'Open interactive graph', 'graph_trangis.html')
+
+    slide.notes_slide.notes_text_frame.text = (
+        "The Trangis subgraph has a very different structure from InfraRef. Instead of a "
+        "uniform fan pattern, you see an interconnected network topology: Tower, Junction, "
+        "GeographicalSpan, and Line form a densely connected core representing the physical "
+        "transmission network. Nearly every node has a yellow border, zero GUID coverage. "
+        "GeographicalSite in turquoise is the bridge to InfraRef, but without GUIDs on the "
+        "Trangis side, this bridge cannot carry identity. The green nodes you see are InfraRef "
+        "concepts that Trangis references,ServiceCenter, WorkCenter, GeographicalSubstation,"
+        "the relationship exists but cannot be resolved. Line and GuardCircuit have the "
+        "additional problem of non-unique IDs from the sign-flipping convention."
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SLIDE 7,GUID Coverage
     # ═══════════════════════════════════════════════════════════════════════════
     slide = prs.slides.add_slide(blank)
     _slide_title(slide, 'GUID Coverage by Source System')
@@ -323,9 +430,9 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
               'InfraRef exceptions (3 concepts without GUID):',
               font_size=14, bold=True)
     _add_bullet_list(slide, Inches(0.6), Inches(3.6), Inches(6), Inches(1.5),
-                     ['FaultRecorderAsset \u2014 legacy FaultAnalysis table',
-                      'SubStation \u2014 FunctionalSite table',
-                      'VoltageLevel \u2014 FunctionalStation table'],
+                     ['FaultRecorderAsset, legacy FaultAnalysis table',
+                      'SubStation, FunctionalSite table',
+                      'VoltageLevel, FunctionalStation table'],
                      font_size=13)
 
     _add_text(slide, Inches(0.6), Inches(5.0), Inches(12), Inches(1),
@@ -335,13 +442,13 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
 
     slide.notes_slide.notes_text_frame.text = (
         "The GUID divide is stark: InfraRef is at 94%, Trangis is at zero. "
-        "InfraRef's 3 exceptions are legacy tables — FaultAnalysis, FunctionalSite, "
-        "FunctionalStation — that predate the GUID standard. These are fixable. "
-        "Trangis is a different story entirely. These are Oracle views — read-only, "
+        "InfraRef's 3 exceptions are legacy tables,FaultAnalysis, FunctionalSite, "
+        "FunctionalStation, that predate the GUID standard. These are fixable. "
+        "Trangis is a different story entirely. These are Oracle views, read-only, "
         "schema cannot be altered, and the system is scheduled for decommissioning. "
         "There is no technical path to adding GUIDs to Trangis short of migrating "
         "the data to a new system. The taxonomy chart on the right shows our five "
-        "severity categories — from silent data loss risk at the top to cascading "
+        "severity categories, from silent data loss risk at the top to cascading "
         "resolution failures at the bottom."
     )
 
@@ -352,7 +459,7 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # SLIDE 6 — Key Violations
+    # SLIDE 6,Key Violations
     # ═══════════════════════════════════════════════════════════════════════════
     slide = prs.slides.add_slide(blank)
     _slide_title(slide, 'Key Violations: Non-Unique IDs & Dual-Source')
@@ -383,30 +490,30 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
                      [
                          'GeographicalSite exists in BOTH InfraRef and Trangis',
                          'Join: InfraRef.GeographicalSiteID = Trangis.P5COD',
-                         'Full outer join \u2014 a site can exist in only one system',
-                         'No designated master \u2014 conflicting data is unresolved',
+                         'Full outer join, a site can exist in only one system',
+                         'No designated master, conflicting data is unresolved',
                          'Parcel (Trangis) references GeographicalSite but '
                          'cannot resolve via GUID \u2192 orphaned records',
                      ], font_size=14)
 
     slide.notes_slide.notes_text_frame.text = (
-        "Four concepts have non-unique IDs — this is the most dangerous violation because "
+        "Four concepts have non-unique IDs, this is the most dangerous violation because "
         "a key-value store will silently overwrite data when two records share the same key. "
-        "The InfraRef ones — GeographicalBay and PowerTransformerPlace — are data quality "
+        "The InfraRef ones,GeographicalBay and PowerTransformerPlace, are data quality "
         "issues that can be investigated and fixed. The Trangis ones are more interesting. "
         "Line uses a sign-flipping convention: positive ID means the line is under tension, "
-        "negative means tension removed. So the same physical line appears as two keys — "
+        "negative means tension removed. So the same physical line appears as two keys,"
         "12.110 and -12.110. GuardCircuit references Line and inherits the same problem. "
         "The cascade impact is an open question with the source team. "
         "On the right: GeographicalSite is the only concept mastered in both systems. "
         "The join on GeographicalSiteID = P5COD is a full outer join, so a site can exist "
         "in only one system. There is no designated master, so conflicting data has no "
         "resolution rule. Parcel from Trangis references GeographicalSite but cannot "
-        "resolve the link via GUID — those records become orphans."
+        "resolve the link via GUID, those records become orphans."
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # SLIDE 7 — Relationship Resolution
+    # SLIDE 7,Relationship Resolution
     # ═══════════════════════════════════════════════════════════════════════════
     slide = prs.slides.add_slide(blank)
     _slide_title(slide, 'Relationship Resolution: 84% Unresolved')
@@ -424,19 +531,19 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
     slide.notes_slide.notes_text_frame.text = (
         "This is the headline number: 84% of relationships are unresolved. "
         "Out of 350 relationship edges, only 45 have a GUID available directly in the "
-        "source data, and Asset Hub fetches another 11 itself — that's 56 total resolved. "
+        "source data, and Asset Hub fetches another 11 itself, that's 56 total resolved. "
         "The remaining 294 are broken links. The bar chart on the left shows resolution "
-        "rate per target concept. WorkCenter stands out at 100% — proof that the system "
+        "rate per target concept. WorkCenter stands out at 100%, proof that the system "
         "works when GUIDs are available. ServiceCenter, despite being referenced 53 times, "
         "resolves under 2%. The donut on the right summarises the overall state. "
-        "To-one relationships resolve at 15%, to-many at 21% — both critically low. "
+        "To-one relationships resolve at 15%, to-many at 21%, both critically low. "
         "This means you cannot traverse the data graph. If you start at an equipment asset "
         "and try to follow its relationships to find its location, service center, or "
         "work center, you will hit a dead end 84% of the time."
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # SLIDE 8 — Recommendations
+    # SLIDE 8,Recommendations
     # ═══════════════════════════════════════════════════════════════════════════
     slide = prs.slides.add_slide(blank)
     _slide_title(slide, 'Recommendations')
@@ -478,17 +585,17 @@ def generate_slides(run_id: int | None = None, out_path: str = 'outputs/slides.p
 
     _add_text(slide, Inches(0.6), Inches(4.8), Inches(12), Inches(2),
               'The combination of missing GUIDs, non-unique IDs, and 84% unresolved '
-              'relationships means Asset Hub cannot reliably link data together \u2014 '
+              'relationships means Asset Hub cannot reliably link data together,'
               'the opposite of what a unified data hub should achieve. '
               'The issues are structural (Trangis architecture), not transient.',
               font_size=16, bold=True, color=BG_DARK)
 
     slide.notes_slide.notes_text_frame.text = (
         "The recommendations fall into three time horizons. "
-        "Immediate: fix the two InfraRef data quality issues — GeographicalBay and "
+        "Immediate: fix the two InfraRef data quality issues,GeographicalBay and "
         "PowerTransformerPlace should not have non-unique IDs, and the 3 InfraRef concepts "
         "missing GUIDs can be remediated. Also critical: get clarity from the Trangis source "
-        "team on the line sign-flipping cascade — we need to know if dependent concepts like "
+        "team on the line sign-flipping cascade, we need to know if dependent concepts like "
         "GuardCircuit update when a line flips state. "
         "Medium-term: we need interim GUID mappings for Trangis using business keys, "
         "a merge strategy for the GeographicalSite dual-source problem, and a monitoring "

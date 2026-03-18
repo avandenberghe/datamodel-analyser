@@ -36,10 +36,13 @@ C_TITLE    = '#1C2833'
 C_SUBTITLE = '#566573'
 
 
-def plot_graph(out_path: str, run_id: int | None = None):
+def plot_graph(out_path: str, run_id: int | None = None,
+               sor_filter: str | None = None):
     """
     Build a directed graph from the database and render it to out_path.
     If run_id is None, uses the first run.
+    If sor_filter is set ('infraref' or 'trangis'), only include concepts
+    and relationships from that source system (plus dual-source nodes).
     """
     con = duckdb.connect(DB_FILE, read_only=True)
 
@@ -116,6 +119,17 @@ def plot_graph(out_path: str, run_id: int | None = None):
             sor_map[n] = 'unknown'
             guid_map[n] = False
             unique_map[n] = True
+
+    # ── SoR filter ──────────────────────────────────────────────────────────
+    if sor_filter:
+        keep = {n for n in G.nodes()
+                if sor_map.get(n) in (sor_filter, 'dual')}
+        # Also keep relationship targets referenced by kept nodes
+        for u, v in list(G.edges()):
+            if u in keep:
+                keep.add(v)
+        remove = set(G.nodes()) - keep
+        G.remove_nodes_from(remove)
 
     # ── Layout ───────────────────────────────────────────────────────────────
     # Spring layout with SoR-based seeding for clustering
@@ -235,11 +249,13 @@ def plot_graph(out_path: str, run_id: int | None = None):
     label_pos = {n: (x, y + label_offset) for n, (x, y) in pos.items()}
 
     # Tier 1: high in-degree hubs — always labelled, larger font
-    hub_labels = {n: n for n in G.nodes() if in_degrees.get(n, 0) >= 10}
+    hub_thresh = 4 if sor_filter else 10
+    hub_labels = {n: n for n in G.nodes() if in_degrees.get(n, 0) >= hub_thresh}
     # Tier 2: medium in-degree or special status
+    mid_thresh = 1 if sor_filter else 3
     mid_labels = {n: n for n in G.nodes()
                   if n not in hub_labels and (
-                      in_degrees.get(n, 0) >= 3
+                      in_degrees.get(n, 0) >= mid_thresh
                       or sor_map.get(n) == 'dual'
                       or not unique_map.get(n, True)
                   )}
@@ -254,8 +270,11 @@ def plot_graph(out_path: str, run_id: int | None = None):
     )
 
     # ── Title & subtitle ─────────────────────────────────────────────────────
+    sor_label = {'infraref': 'InfraRef', 'trangis': 'Trangis'}.get(sor_filter, '')
+    title_text = f'Asset Hub — {sor_label} Concept Graph' if sor_label else \
+                 'Asset Hub — Concept Relationship Graph'
     ax.set_title(
-        'Asset Hub — Concept Relationship Graph',
+        title_text,
         fontsize=16, fontweight='bold', color=C_TITLE, pad=20
     )
     ax.text(
@@ -292,3 +311,5 @@ def plot_graph(out_path: str, run_id: int | None = None):
 
 if __name__ == '__main__':
     plot_graph('outputs/graph.png')
+    plot_graph('outputs/graph_infraref.png', sor_filter='infraref')
+    plot_graph('outputs/graph_trangis.png', sor_filter='trangis')
